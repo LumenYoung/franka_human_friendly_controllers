@@ -3,6 +3,7 @@
 #include <franka_human_friendly_controllers/cartesian_variable_impedance_controller.h>
 
 #include <cmath>
+#include <algorithm>  // for std::copy
 
 #include <controller_interface/controller_base.h>
 #include <franka_human_friendly_controllers/franka_model.h>
@@ -51,6 +52,8 @@ bool CartesianVariableImpedanceController::init(hardware_interface::RobotHW* rob
   pub_cartesian_pose_= node_handle.advertise<geometry_msgs::PoseStamped>("/cartesian_pose",1);
 
   pub_force_torque_= node_handle.advertise<geometry_msgs::WrenchStamped>("/force_torque_ext",1);
+  pub_joint_states_ = node_handle.advertise<sensor_msgs::JointState>("joint_states", 1);
+  pub_franka_state_ = node_handle.advertise<franka_msgs::FrankaState>("franka_state", 1);
 
   std::string arm_id;
   if (!node_handle.getParam("arm_id", arm_id)) {
@@ -193,6 +196,64 @@ void CartesianVariableImpedanceController::update(const ros::Time& /*time*/,
                                                  const ros::Duration& /*period*/) {
   // get state variables
   franka::RobotState robot_state = state_handle_->getRobotState();
+
+  // Publish joint states
+  sensor_msgs::JointState joint_state_msg;
+  joint_state_msg.header.stamp = ros::Time::now();
+  joint_state_msg.name = {"panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", 
+                         "panda_joint5", "panda_joint6", "panda_joint7"};
+  joint_state_msg.position.assign(robot_state.q.begin(), robot_state.q.end());
+  joint_state_msg.velocity.assign(robot_state.dq.begin(), robot_state.dq.end());
+  joint_state_msg.effort.assign(robot_state.tau_J.begin(), robot_state.tau_J.end());
+  pub_joint_states_.publish(joint_state_msg);
+
+  // Publish franka state
+  franka_msgs::FrankaState franka_state_msg;
+  franka_state_msg.header.stamp = ros::Time::now();
+  std::copy(robot_state.cartesian_collision.begin(),
+            robot_state.cartesian_collision.end(),
+            franka_state_msg.cartesian_collision.begin());
+
+  std::copy(robot_state.cartesian_contact.begin(),
+            robot_state.cartesian_contact.end(),
+            franka_state_msg.cartesian_contact.begin());
+
+  std::copy(robot_state.q.begin(),
+            robot_state.q.end(),
+            franka_state_msg.q.begin());
+
+  std::copy(robot_state.q_d.begin(),
+            robot_state.q_d.end(),
+            franka_state_msg.q_d.begin());
+
+  std::copy(robot_state.dq.begin(),
+            robot_state.dq.end(),
+            franka_state_msg.dq.begin());
+
+  std::copy(robot_state.dq_d.begin(),
+            robot_state.dq_d.end(),
+            franka_state_msg.dq_d.begin());
+
+  std::copy(robot_state.tau_J.begin(),
+            robot_state.tau_J.end(),
+            franka_state_msg.tau_J.begin());
+
+  std::copy(robot_state.dtau_J.begin(),
+            robot_state.dtau_J.end(),
+            franka_state_msg.dtau_J.begin());
+
+  std::copy(robot_state.tau_J_d.begin(),
+            robot_state.tau_J_d.end(),
+            franka_state_msg.tau_J_d.begin());
+
+  std::copy(robot_state.theta.begin(),
+            robot_state.theta.end(),
+            franka_state_msg.theta.begin());
+
+  std::copy(robot_state.dtheta.begin(),
+            robot_state.dtheta.end(),
+            franka_state_msg.dtheta.begin());
+  pub_franka_state_.publish(franka_state_msg);
   std::array<double, 7> coriolis_array = model_handle_->getCoriolis();
   std::array<double, 49> mass_array = model_handle_->getMass();
   Eigen::Map<Eigen::Matrix<double, 7, 7> > mass(mass_array.data());
