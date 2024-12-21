@@ -17,6 +17,11 @@
 
 namespace franka_human_friendly_controllers {
 
+CartesianVariableImpedanceController::CartesianVariableImpedanceController()
+  : grasp_client_("franka_gripper/grasp", true),
+    move_client_("franka_gripper/move", true) {
+}
+
 void CartesianVariableImpedanceController::loadModel() {
   std::cout << "Loading nothing as we are using the internal model" << std::endl;
 }
@@ -54,6 +59,9 @@ bool CartesianVariableImpedanceController::init(hardware_interface::RobotHW* rob
   pub_force_torque_= node_handle.advertise<geometry_msgs::WrenchStamped>("/force_torque_ext",1);
   pub_joint_states_ = node_handle.advertise<sensor_msgs::JointState>("joint_states", 1);
   pub_franka_state_ = node_handle.advertise<franka_msgs::FrankaState>("franka_state", 1);
+
+  // Apply constant gripper force
+  applyGripperForce(5.0); // 10N constant force
 
   std::string arm_id;
   if (!node_handle.getParam("arm_id", arm_id)) {
@@ -483,7 +491,23 @@ void CartesianVariableImpedanceController::equilibriumConfigurationCallback( con
 void CartesianVariableImpedanceController::equilibriumVibrationCallback( const std_msgs::Float32::ConstPtr& vibration_msg) {
   count_vibration = 0;
   duration_vibration = vibration_msg->data;
+}
 
+void CartesianVariableImpedanceController::applyGripperForce(double force) {
+  // Wait for action server
+  if (!grasp_client_.waitForServer(ros::Duration(2.0))) {
+    ROS_ERROR("Grasp action server not available");
+    return;
+  }
+
+  // Create and send grasp goal
+  franka_gripper::GraspGoal grasp_goal;
+  grasp_goal.force = force;  // Desired force in Newtons
+  grasp_goal.speed = 0.1;    // Closing speed in m/s
+  grasp_goal.epsilon.inner = 0.001; // Tolerance for grasp
+  grasp_goal.epsilon.outer = 0.001;
+
+  grasp_client_.sendGoal(grasp_goal);
 }
 
 

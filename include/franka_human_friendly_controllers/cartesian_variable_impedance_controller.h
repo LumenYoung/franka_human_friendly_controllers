@@ -22,8 +22,12 @@
 #include <ros/node_handle.h>
 #include <ros/time.h>
 #include <Eigen/Dense>
+#include <actionlib/client/simple_action_client.h>
+#include <franka_gripper/GraspAction.h>
+#include <franka_gripper/MoveAction.h>
 #include <sensor_msgs/JointState.h>
 #include <franka_msgs/FrankaState.h>
+#include <franka_gripper/GraspAction.h>
 
 #include <franka_human_friendly_controllers/compliance_paramConfig.h>
 #include <franka_hw/franka_model_interface.h>
@@ -36,6 +40,7 @@ class CartesianVariableImpedanceController : public controller_interface::MultiI
                                                 hardware_interface::EffortJointInterface,
                                                 franka_hw::FrankaStateInterface> {
  public:
+  CartesianVariableImpedanceController();
   bool init(hardware_interface::RobotHW* robot_hw, ros::NodeHandle& node_handle) override;
   void starting(const ros::Time&) override;
   void update(const ros::Time&, const ros::Duration& period) override;
@@ -110,6 +115,12 @@ class CartesianVariableImpedanceController : public controller_interface::MultiI
   ros::Publisher pub_force_torque_;
   ros::Publisher pub_joint_states_;
   ros::Publisher pub_franka_state_;
+
+  // Gripper control
+  void applyGripperForce(double force);
+  actionlib::SimpleActionClient<franka_gripper::GraspAction> grasp_client_;
+  actionlib::SimpleActionClient<franka_gripper::MoveAction> move_client_;
+  
 
 };
 
